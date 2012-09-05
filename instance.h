@@ -22,6 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef WEBORF_INSTANCE_H
 #define WEBORF_INSTANCE_H
 
+
 #include "types.h"
 #include "buffered_reader.h"
 
@@ -29,14 +30,20 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "webdav.h"
 #endif
 
+#include "mypoll.h"
+#include "arraylist.h"
 
-#define NO_ACTION -120
+
+typedef struct {
+    magic_t mime_token;         //Token for libmagic
+    poll_t poll;                //Token for epoll/whatever
+    arraylist_t connections;    //
+} thread_prop_t;
 
 void inetd();
 void *instance(void *);
-int send_err(connection_t *connection_prop,int err,char* descr);
-int send_http_header(connection_t * connection_prop);
-int delete_file(connection_t* connection_prop);
-int read_file(connection_t* connection_prop,buffered_read_t* read_b);
 void prepare_get_file(connection_t* connection_prop);
+
+
+
 #endif

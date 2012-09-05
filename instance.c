@@ -73,6 +73,9 @@ static void get_or_post(connection_t *connection_prop);
 static inline void read_req_headers(connection_t* connection_prop);
 static inline void handle_request(connection_t* connection_prop);
 
+static int send_err(connection_t *connection_prop,int err,char* descr);
+static int send_http_header(connection_t * connection_prop);
+
 static void prepare_put(connection_t *connection_prop);
 static void do_put(connection_t* connection_prop);
 static void do_cp_fd_sock_size(connection_t* connection_prop);
@@ -82,6 +85,10 @@ static void do_cp_fd_sock(connection_t *connection_prop, int fd);
 static void prepare_tar_send_dir(connection_t* connection_prop);
 static void do_tar_send_dir(connection_t* connection_prop);
 
+
+static inline thread_prop_t * get_thread_prop() {
+    return pthread_getspecific(thread_key);
+}
 
 /**
  * TODO
@@ -279,7 +286,7 @@ more_data:
 /**
 Set thread with id as free
 */
-void change_free_thread(long int id,int free_d, int count_d) {
+void change_free_thread(int free_d, int count_d) {
     pthread_mutex_lock(&thread_info.mutex);
 
     thread_info.free+=free_d;
@@ -316,22 +323,51 @@ static inline void thr_free_connect_prop(connection_t *connection_prop) {
 }
 
 /**
+ * Initializes data structures for the thread
+ * 
+ * returns 0 in case of success
+ **/
+static inline int init_thread() {
+    thread_prop_t thread_prop;  //Server's props
+    pthread_setspecific(thread_key, (void *)&thread_prop); //Set thread_prop as thread variable
+    thread_prop.poll = mypoll_create(1);
+    
+    bool list_r = arraylist_create(&(thread_prop.connections),sizeof(connection_t),1);
+    
+    #ifdef THREADDBG
+    syslog(LOG_DEBUG,"Starting thread");
+    #endif
+    
+    int mime_r = mime_init(&thread_prop.mime_token);
+    
+    if ((mime_r & list_r) != 0)
+        return 1;
+    return 0;
+}
+
+static void release_thread() {
+    thread_prop_t * thread_prop = get_thread_prop();
+    mime_release(thread_prop->mime_token);
+    
+    connection_t * item;
+    arraylist_t * list = &(thread_prop->connections);
+    while (arraylist_size(list)>0) {
+        item = arraylist_get(list,arraylist_size(list)-1); //last element
+        thr_free_connect_prop(item);
+        arraylist_remove_last(list);
+    }
+}
+
+/**
 Function executed at the beginning of the thread
 Takes open sockets from the queue and serves the requests
 Doesn't do busy waiting
 */
 void * instance(void * nulla) {
-    thread_prop_t thread_prop;  //Server's props
-    pthread_setspecific(thread_key, (void *)&thread_prop); //Set thread_prop as thread variable
-    connection_t connection_prop;                   //Struct to contain properties of the connection
-
+    
     //General init of the thread
-    thread_prop.id=(long int)nulla;//Set thread's id
-#ifdef THREADDBG
-    syslog(LOG_DEBUG,"Starting thread %ld",thread_prop.id);
-#endif
-
-    if (mime_init(&thread_prop.mime_token)!=0 || thr_init_connect_prop(&connection_prop)) { //Unable to allocate the buffer
+    
+    if (init_thread()!=0) { //Unable to allocate the buffer
 #ifdef SERVERDBG
         syslog(LOG_CRIT,"Not enough memory to allocate buffers for new thread");
 #endif
@@ -339,11 +375,15 @@ void * instance(void * nulla) {
     }
 
     //Start accepting sockets
-    change_free_thread(thread_prop.id,1,0);
+    change_free_thread(1,0);
+    
+    //FIXME use the array
+    connection_t connection_prop;
+    thr_init_connect_prop(&connection_prop);
 
     while (true) {
         q_get(&queue, &(connection_prop.sock));//Gets a socket from the queue
-        change_free_thread(thread_prop.id,-1,0);//Sets this thread as busy
+        change_free_thread(-1,0);//Sets this thread as busy
 
         if (connection_prop.sock<0) { //Was not a socket but a termination order
             goto release_resources;
@@ -365,17 +405,19 @@ void * instance(void * nulla) {
         close(connection_prop.sock);//Closing the socket
         buffer_reset (&(connection_prop.read_b));
 
-        change_free_thread(thread_prop.id,1,0);//Sets this thread as free
+        change_free_thread(1,0);//Sets this thread as free
     }
 
 
 release_resources:
 #ifdef THREADDBG
-    syslog(LOG_DEBUG,"Terminating thread %ld",thread_prop.id);
+    syslog(LOG_DEBUG,"Terminating thread");
 #endif
-    thr_free_connect_prop(&connection_prop);
-    mime_release(thread_prop.mime_token);
-    change_free_thread(thread_prop.id,0,-1);//Reduces count of threads
+    release_thread();
+    
+#warning "remove the following, has to be done in the list"
+    thr_free_connect_prop(&connection_prop); 
+    change_free_thread(0,-1);//Reduces count of threads
     pthread_exit(0);
     return NULL;//Never reached
 }
@@ -788,7 +830,7 @@ void prepare_get_file(connection_t* connection_prop) {
 #ifdef SEND_MIMETYPES
     //Sending MIME to the client
     if (weborf_conf.send_content_type) {
-        thread_prop_t *thread_prop = pthread_getspecific(thread_key);
+        thread_prop_t *thread_prop = get_thread_prop();
         const char* mime=mime_get_fd(thread_prop->mime_token,connection_prop->strfile_fd,&(connection_prop->strfile_stat));
 
         http_append_header_str(connection_prop,"Content-Type: %s\r\n",mime);
@@ -1091,7 +1133,6 @@ void inetd() {
     pthread_setspecific(thread_key, (void *)&thread_prop); //Set thread_prop as thread variable
 
     //General init of the thread
-    thread_prop.id=0;
     connection_t connection_prop;                   //Struct to contain properties of the connection
 
     if (mime_init(&thread_prop.mime_token)!=0 || thr_init_connect_prop(&connection_prop)) { //Unable to allocate the buffer

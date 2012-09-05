@@ -113,11 +113,6 @@ typedef struct {
 } string_t;
 
 typedef struct {
-    long int id;                //ID of the thread
-    magic_t mime_token;         //Token for libmagic
-} thread_prop_t;
-
-typedef struct {
     size_t len;                //length of the array
     char *data[MAXINDEXCOUNT];  //Array containing pointers
     size_t data_l[MAXINDEXCOUNT];  //Array containing len of strings

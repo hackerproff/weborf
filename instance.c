@@ -964,36 +964,22 @@ int send_err(connection_t *connection_prop,int err,char* descr) {
     connection_prop->response.status_code=err; //Sets status code, for the logs
 
     //Buffer for both header and page
-    char * head=malloc(MAXSCRIPTOUT+HEADBUF);
+    char * page=malloc(MAXSCRIPTOUT);
 
-    if (head==NULL) {
+    if (page==NULL) {
 #ifdef SERVERDBG
         syslog(LOG_CRIT,"Not enough memory to allocate buffers");
 #endif
         return HTTP_CODE_SERVICE_UNAVAILABLE;
     }
 
-    char * page=head+HEADBUF;
-
     //Prepares the page
     int page_len=snprintf(page,MAXSCRIPTOUT,"%s <H1>Error %d</H1>%s %s",HTMLHEAD,err,descr,HTMLFOOT);
+    
+    dprintf(sock,"HTTP/1.1 %d %s\r\nServer: " SIGNATURE "\r\nContent-Length: %d\r\nContent-Type: text/html\r\n\r\n%.*s",err,descr ,page_len,page_len,page);
 
-    //Prepares the header
-    int head_len = snprintf(head,HEADBUF,"HTTP/1.1 %d %s\r\nServer: " SIGNATURE "\r\nContent-Length: %d\r\nContent-Type: text/html\r\n\r\n",err,descr ,page_len);
-
-    //Sends the http header
-    if (write (sock,head,head_len)!=head_len) {
-        free(head);
-        return HTTP_CODE_DISCONNECTED;
-    }
-
-    //Sends the html page
-    if (write(sock,page,page_len)!=page_len) {
-        free(head);
-        return HTTP_CODE_DISCONNECTED;
-    }
-
-    free(head);
+    //return HTTP_CODE_DISCONNECTED;
+    free(page);
     return 0;
 }
 

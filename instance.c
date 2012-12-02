@@ -364,17 +364,73 @@ void * instance(void * nulla) {
 
                 connections_fds[connection_prop->sock] = arraylist_append(&thread_prop->connections,connection_prop);
 
-                printf ("new connection\n");
+                printf ("new connection: %d status %d addr %d\n",connection_prop->sock,connection_prop->status,connection_prop);
+                
+                mypoll_add(thread_prop->poll,connection_prop->sock,EPOLLIN);
+                
+                continue;
             }
 
             connection_prop = arraylist_get(&thread_prop->connections,connections_fds[events[n].data.fd]);
+            
+            connection_prop->accessed = time(NULL);
+            
             connection_status_e old_status = connection_prop->status;
             handle_request(connection_prop);
-            printf("->connection %d old status %d, status \n",connection_prop->sock,old_status,connection_prop->status);
+            printf("->connection %d old status %d, status %d addr %d\n",connection_prop->sock,old_status,connection_prop->status,connection_prop);
 
             if (connection_prop->status == old_status) {
                 continue;
             }
+            
+            switch (old_status) {
+            case STATUS_WAIT_HEADER:                         //No fd
+            case STATUS_SERVE_REQUEST:                       //No fd
+            case STATUS_CGI_FREE_RESOURCES:                  //No fd
+            case STATUS_INIT_CHECK_AUTH:                     //can connect to weborf_conf.authsock
+            case STATUS_PAGE_SENT:                           //closing strfile_fd if >=0
+            case STATUS_END:                     //close sock and free structure
+            case STATUS_ERR_NO_CONNECTION:                   //close sock and free structure
+                break;
+
+            case STATUS_READY_TO_SEND:                       //sock readable
+            case STATUS_WAIT_DATA:
+                mypoll_del(thread_prop->poll,connection_prop->sock);
+                break;
+
+            case STATUS_GET_METHOD:                          //strfile_fd readable, sock writable
+                //FIXME both of them should be true at the same time...
+                mypoll_del(thread_prop->poll,connection_prop->strfile_fd);
+
+            case STATUS_ERR:                                 //sock writable
+            case STATUS_READY_FOR_NEXT:
+            case STATUS_SEND_HEADERS:
+            case STATUS_COPY_FROM_POST_DATA_TO_SOCKET:
+            case STATUS_TAR_DIRECTORY:
+            case STATUS_CGI_FLUSH_HEADER_BUFFER:
+                mypoll_del(thread_prop->poll,connection_prop->sock);
+                break;
+
+
+            case STATUS_CHECK_AUTH:                          //strfile_fd readable
+                mypoll_del(thread_prop->poll,connection_prop->strfile_fd);
+                break;
+
+            case STATUS_PUT_METHOD:                          //strfile_fd writable
+                mypoll_del(thread_prop->poll,connection_prop->strfile_fd);
+                break;
+
+            case STATUS_CGI_COPY_POST:                       //fd_to_cgi writable
+                mypoll_del(thread_prop->poll,connection_prop->fd_to_cgi);
+                break;
+
+            case STATUS_CGI_SEND_CONTENT:                    //fd_from_cgi readable, sock writable
+                //FIXME both should be available at the same moment
+                mypoll_del(thread_prop->poll,connection_prop->sock);
+            case STATUS_CGI_WAIT_HEADER:                     //fd_from_cgi readable
+                mypoll_del(thread_prop->poll,connection_prop->fd_from_cgi);
+                break;
+            };
 
             switch (connection_prop->status) {
             case STATUS_WAIT_HEADER:                         //No fd
@@ -422,6 +478,7 @@ void * instance(void * nulla) {
 
 
             case STATUS_CGI_SEND_CONTENT:                    //fd_from_cgi readable, sock writable
+                //FIXME both should be available at the same moment
                 mypoll_add(thread_prop->poll,connection_prop->sock,EPOLLOUT);
             case STATUS_CGI_WAIT_HEADER:                     //fd_from_cgi readable
                 mypoll_add(thread_prop->poll,connection_prop->fd_from_cgi,EPOLLIN);

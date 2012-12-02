@@ -69,21 +69,9 @@ ssize_t buffer_fill(int fd, buffered_read_t * buf) {
     }
 
     buf->start = buf->buffer;
-
-    //Timeout implementation
-    struct pollfd monitor[1];
-    monitor[0].fd = fd; //File descriptor to monitor
-    monitor[0].events = POLLIN; //Monitor on input events
-#warning "remove the poll and do it async"
-
-    //Waits the timeout or reads the data.
-    //If timeout is reached and no input is available
-    //will behave like the stream is closed.
-    if (poll(monitor, 1, READ_TIMEOUT) == 0) {
-        r = 0;
-    } else {
-        r = read(fd, buf->buffer, buf->size);
-    }
+    
+    r = read(fd, buf->buffer, buf->size);
+    
 
     if (r <= 0) { //End of the stream
         buf->end = buf->start;

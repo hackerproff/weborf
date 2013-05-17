@@ -1,0 +1,60 @@
+50000 richieste, aperti kopete,kate,skype,akregator,konversation
+1000 richieste per il file di 10mega
+
+propfind di directory vuota
+propfind di directory con 10 file
+propfind di directory con 1000 file
+
+
+file statico di 1,4KiB
+                        1       20      50      100     200
+weborf                  5396    10115   9928    9836    9390
+lighttpd                6353    15320   15430   15146   14115
+apache2                 2786    7901    7800    7304    7051
+nginx                   4671    12994   15974   14464   14975
+
+file statico di 10MiB
+                        1       20      50      100     200
+weborf                  46      60      49      45      42
+lighttpd                80      102     104     111     104
+apache2                 71      102     98      88      77
+nginx                   78      108     109     109     104
+
+lista di directory vuota
+                        1       20      50      100     200
+weborf                  4210    8787    8714    8597    8404
+weborf(cached)         5826    8667    8694    8479    8294
+lighttpd                5926    13653   13558   13221   10116
+apache2                 1084    2931    2858    2961    2926
+nginx                   4230    14143   14113   13787   13674
+
+
+lista di directory con 10 file
+                        1       20      50      100     200
+weborf                  3033    6845    6795    6851    6562
+weborf(cached)         4978    8960    8804    8566    8237
+lighttpd                3571    7202    7275    7665    6860
+apache2                 644     1723    1787    1643    1809
+nginx                   5306    8668    9544    9491    9005
+
+lista di directory con 1000 file
+                        1       20      50      100     200
+weborf                  61      376     384     396     385
+weborf(cached)         2713    3470    2920    2742    2582
+lighttpd                125     124     124     123     125
+apache2                 34      45      42      40      48
+nginx                   324     459     477     434     277
+
+phpinfo()
+                        1       20      50      100     200
+weborf                  44      73      73      74      73
+lighttpd                52      78      80      81      76
+apache2*                -       -       -       -       -
+nginx                   -       -       -       -       -
+
+                        1       20      50      100     200
+weborf
+weborf (cached)
+lighttpd
+apache2
+nginx

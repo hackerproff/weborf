@@ -15,7 +15,6 @@
 - Sends Accept-Ranges header in response, when content-length is known (David Kalnischkies)
 - Show "GNU/Linux" only on GNU/Linux systems
 - Added an option to print the capabilities of the server (useful for tools like qweborf)
-- Multiple instances of qweborf from the same user can operate in the same time
 - using pread() instead of emulating it with lseek()
 - support for chunked encoding
 
@@ -23,6 +22,7 @@
 - qweborf: uses the -B option, for an easier parsing
 - qweborf: doesn't crash when using miredo
 - qweborf: can use UPnP to open external ports in NAT devices
+- qwebprf: multiple instances from the same user can operate at the same time
 
 0.13
 - Shows last modified column in directory listing (Rev 419)
